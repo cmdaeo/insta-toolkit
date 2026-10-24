@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Instagram Connections – Simple Analyzer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- JSZip from CDN (required to read the export .zip) -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050816;
+      --bg-soft: #0b1020;
+      --card: #111827;
+      --card-soft: #020617;
+      --border: #1f2937;
+      --accent: #22c55e;
+      --accent-soft: rgba(34, 197, 94, 0.15);
+      --danger: #f97373;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --radius: 14px;
+      --radius-pill: 999px;
+      --shadow: 0 18px 40px rgba(15, 23, 42, 0.7);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #111827 0, #020617 55%, #020617 100%);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 24px 12px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 980px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .row {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .col {
+      flex: 1 1 0;
+      min-width: 260px;
+    }
+
+    .card {
+      background: linear-gradient(135deg, var(--card), var(--card-soft));
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .drop-zone {
+      margin-top: 4px;
+      border-radius: var(--radius);
+      border: 2px dashed rgba(148, 163, 184, 0.7);
+      background: rgba(15, 23, 42, 0.9);
+      padding: 18px 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease,
+        box-shadow 0.15s ease;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(15, 23, 42, 1);
+      box-shadow: 0 14px 32px rgba(15, 23, 42, 0.9);
+      transform: translateY(-1px);
+    }
+
+    .drop-main {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    .drop-hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .file-row {
+      margin-top: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .file-name {
+      font-weight: 500;
+      color: var(--text);
+      word-break: break-all;
+    }
+
+    .btn {
+      border-radius: var(--radius-pill);
+      border: 1px solid transparent;
+      padding: 7px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      background: none;
+      color: var(--text);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease,
+        box-shadow 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: radial-gradient(circle at 0 0, #22c55e 0, #16a34a 50%, #15803d 100%);
+      border-color: rgba(34, 197, 94, 0.7);
+      box-shadow: 0 10px 26px rgba(22, 163, 74, 0.7);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 34px rgba(22, 163, 74, 0.8);
+    }
+
+    .btn-secondary {
+      border-color: rgba(148, 163, 184, 0.7);
+      color: var(--muted);
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    .btn-secondary:hover {
+      border-color: rgba(209, 213, 219, 0.9);
+      color: #d1d5db;
+    }
+
+    .btn-small {
+      padding: 4px 10px;
+      font-size: 11px;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .status strong {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .status.error strong {
+      color: var(--danger);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 720px) {
+      .summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .summary-tile {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.96);
+      padding: 8px 9px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .summary-label {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 10px;
+    }
+
+    .summary-value {
+      font-size: 16px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .summary-note {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .section-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      gap: 8px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--muted);
+    }
+
+    .search {
+      width: 100%;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.98);
+      color: var(--text);
+      font-size: 12px;
+      padding: 6px 9px;
+      outline: none;
+    }
+
+    .search::placeholder {
+      color: #6b7280;
+    }
+
+    .list {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.97);
+      max-height: 420px;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+
+    .item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 9px;
+      border-bottom: 1px solid #111827;
+    }
+
+    .item:nth-child(odd) {
+      background: rgba(15, 23, 42, 0.96);
+    }
+
+    .item:nth-child(even) {
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    .item:last-child {
+      border-bottom: none;
+    }
+
+    .item-main {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .username a {
+      color: #a5b4fc;
+      text-decoration: none;
+    }
+
+    .username a:hover {
+      text-decoration: underline;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .pill {
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      padding: 3px 8px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+
+    .pill-danger {
+      border-color: rgba(248, 113, 113, 0.9);
+      color: #fecaca;
+      background: rgba(248, 113, 113, 0.08);
+    }
+
+    .pill-ok {
+      border-color: rgba(34, 197, 94, 0.8);
+      color: #bbf7d0;
+      background: rgba(34, 197, 94, 0.1);
+    }
+
+    .empty {
+      padding: 12px 10px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .note {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: var(--accent);
+      animation: spin 0.75s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <h1>Instagram Connections</h1>
+      <p class="subtitle">
+        Drop your Instagram data export <code>.zip</code> to see who follows you, who you follow,
+        who does not follow you back, and pending follow requests.
+      </p>
+
+      <div id="dropZone" class="drop-zone">
+        <div class="drop-main">Drop export <code>.zip</code> here</div>
+        <div class="drop-hint">or click to choose a file</div>
+        <input id="fileInput" class="file-input" type="file" accept=".zip" />
+      </div>
+
+      <div class="file-row" id="fileRow" style="display:none;">
+        <div>
+          <div class="file-name" id="fileName"></div>
+          <div id="fileSize"></div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button id="removeBtn" class="btn btn-secondary btn-small">Remove</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 10px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button id="analyzeBtn" class="btn btn-primary" disabled>
+          <span id="analyzeLabel">Analyze</span>
+          <span id="analyzeSpinner" class="spinner" style="display:none;"></span>
+        </button>
+        <button id="resetBtn" class="btn btn-secondary btn-small">Reset</button>
+      </div>
+
+      <div id="status" class="status">No file loaded yet.</div>
+
+      <div class="summary-grid" id="summary" style="display:none;">
+        <div class="summary-tile">
+          <div class="summary-label">Followers</div>
+          <div class="summary-value" id="followersCount">0</div>
+          <div class="summary-note">Users following you</div>
+        </div>
+        <div class="summary-tile">
+          <div class="summary-label">Following</div>
+          <div class="summary-value" id="followingCount">0</div>
+          <div class="summary-note">Accounts you follow</div>
+        </div>
+        <div class="summary-tile">
+          <div class="summary-label">You don't follow back</div>
+          <div class="summary-value" id="youDontFollowBackCount">0</div>
+          <div class="summary-note">Followers not followed by you</div>
+        </div>
+        <div class="summary-tile">
+          <div class="summary-label">Don't follow you</div>
+          <div class="summary-value" id="theyDontFollowCount">0</div>
+          <div class="summary-note">People you follow only</div>
+        </div>
+      </div>
+
+      <p class="note">
+        Everything is processed locally in your browser. Just open this file and drop the export
+        <code>.zip</code> you downloaded from Instagram.
+      </p>
+    </div>
+
+    <div class="row">
+      <div class="col">
+        <div class="card">
+          <div class="section-title-row">
+            <div class="section-title">They don't follow you</div>
+            <input id="searchOneWay" class="search" placeholder="Filter by username…" />
+          </div>
+          <div id="listOneWay" class="list">
+            <div class="empty">Run an analysis to see results.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <div class="section-title-row">
+            <div class="section-title">Pending you sent</div>
+            <input id="searchPending" class="search" placeholder="Filter by username…" />
+          </div>
+          <div id="listPending" class="list">
+            <div class="empty">Run an analysis to see results.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="font-size:11px; color:var(--muted);">
+      Tip: In your export, these files live under
+      <code>connections/followers_and_following/</code>. This tool automatically detects
+      <code>followers_*.html</code>, <code>followers_*.json</code>,
+      <code>following.html</code>, <code>following.json</code>,
+      <code>pending_follow_requests.html</code> and <code>pending_follow_requests.json</code>.
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const dropZone = document.getElementById("dropZone");
+    const fileRow = document.getElementById("fileRow");
+    const fileNameEl = document.getElementById("fileName");
+    const fileSizeEl = document.getElementById("fileSize");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const analyzeLabel = document.getElementById("analyzeLabel");
+    const analyzeSpinner = document.getElementById("analyzeSpinner");
+    const resetBtn = document.getElementById("resetBtn");
+    const removeBtn = document.getElementById("removeBtn");
+    const statusEl = document.getElementById("status");
+    const summaryEl = document.getElementById("summary");
+
+    const followersCountEl = document.getElementById("followersCount");
+    const followingCountEl = document.getElementById("followingCount");
+    const youDontFollowBackCountEl = document.getElementById("youDontFollowBackCount");
+    const theyDontFollowCountEl = document.getElementById("theyDontFollowCount");
+
+    const listOneWay = document.getElementById("listOneWay");
+    const listPending = document.getElementById("listPending");
+    const searchOneWay = document.getElementById("searchOneWay");
+    const searchPending = document.getElementById("searchPending");
+
+    let currentFile = null;
+    let oneWayList = [];
+    let pendingList = [];
+
+    function formatBytes(bytes) {
+      if (!bytes && bytes !== 0) return "";
+      const units = ["B", "KB", "MB", "GB"];
+      let i = 0;
+      let v = bytes;
+      while (v >= 1024 && i < units.length - 1) {
+        v /= 1024;
+        i++;
+      }
+      return v.toFixed(1) + " " + units[i];
+    }
+
+    function setStatus(text, isError = false) {
+      statusEl.textContent = text;
+      statusEl.classList.toggle("error", isError);
+    }
+
+    function resetAll() {
+      currentFile = null;
+      fileInput.value = "";
+      fileRow.style.display = "none";
+      analyzeBtn.disabled = true;
+      summaryEl.style.display = "none";
+      setStatus("No file loaded yet.");
+      listOneWay.innerHTML = '<div class="empty">Run an analysis to see results.</div>';
+      listPending.innerHTML = '<div class="empty">Run an analysis to see results.</div>';
+      oneWayList = [];
+      pendingList = [];
+      searchOneWay.value = "";
+      searchPending.value = "";
+    }
+
+    function handleFile(file) {
+      if (!file) return;
+      currentFile = file;
+      fileNameEl.textContent = file.name;
+      fileSizeEl.textContent = formatBytes(file.size);
+      fileRow.style.display = "flex";
+      analyzeBtn.disabled = false;
+      setStatus("File ready. Click “Analyze”.");
+    }
+
+    dropZone.addEventListener("click", () => fileInput.click());
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.classList.add("drag-over");
+    });
+    dropZone.addEventListener("dragleave", () => {
+      dropZone.classList.remove("drag-over");
+    });
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file) handleFile(file);
+    });
+
+    removeBtn.addEventListener("click", resetAll);
+    resetBtn.addEventListener("click", resetAll);
+
+    // ---------- HTML parsing ----------
+
+    function parseUsernamesFromHtml(htmlText) {
+      const doc = new DOMParser().parseFromString(htmlText, "text/html");
+      const anchors = Array.from(doc.querySelectorAll('a[href*="instagram.com/"]'));
+      const usernames = new Set();
+
+      const re = /instagram\.com\/(?:_u\/)?([A-Za-z0-9._]+)/i;
+
+      for (const a of anchors) {
+        const href = a.getAttribute("href") || "";
+        const match = href.match(re);
+        if (!match) continue;
+        const uname = match[1];
+        if (uname) usernames.add(uname);
+      }
+
+      return Array.from(usernames);
+    }
+
+    // Novo parser para pending_follow_requests.html
+    // Suporta o formato novo (tabela com "Nome de utilizador", "Username", ...)
+    // e o formato antigo (link para instagram.com).
+    function parsePendingFromHtml(htmlText) {
+      const doc = new DOMParser().parseFromString(htmlText, "text/html");
+      const blocks = Array.from(doc.querySelectorAll(".uiBoxWhite"));
+      const out = [];
+      const seen = new Set();
+
+      // Aceita labels em várias línguas
+      const usernameLabelRe = /user|utili[sz]|usu[aá]r|utente|benutzer|gebruiker|kullan/i;
+      const urlLabelRe = /^(url|link|site|endere[cç]o|website)$/i;
+      const instaRe = /instagram\.com\/(?:_u\/)?([A-Za-z0-9._]+)/i;
+
+      for (const block of blocks) {
+        let uname = null;
+        let urlVal = null;
+
+        // Iterar <tr> é mais robusto do que assumir td's alternados,
+        // especialmente porque há .uiBoxWhite aninhados.
+        const rows = Array.from(block.querySelectorAll("tr"));
+        for (const tr of rows) {
+          const cells = tr.querySelectorAll("td");
+          if (cells.length < 2) continue;
+
+          const label = (cells[0].textContent || "").replace(/\s+/g, " ").trim();
+          const value = (cells[1].textContent || "").replace(/\s+/g, " ").trim();
+          if (!label || !value) continue;
+
+          if (!uname && usernameLabelRe.test(label)) {
+            uname = value;
+          } else if (!urlVal && urlLabelRe.test(label)) {
+            urlVal = value;
+          }
+        }
+
+        // Fallback: extrair username de uma URL do Instagram na linha "URL"
+        if (!uname && urlVal) {
+          const m = urlVal.match(instaRe);
+          if (m) uname = m[1];
+        }
+
+        // Fallback: links do formato antigo
+        if (!uname) {
+          const a = block.querySelector('a[href*="instagram.com"]');
+          if (a) {
+            const href = a.getAttribute("href") || "";
+            const m = href.match(instaRe);
+            if (m) uname = m[1];
+          }
+        }
+
+        if (!uname) continue;
+        if (seen.has(uname)) continue;
+        seen.add(uname);
+
+        // Data: usa ._a6-o (ou ._3-94) e, em último recurso, o último filho direto
+        let dateText = "unknown";
+        const dateEl = block.querySelector("._a6-o") || block.querySelector("._3-94");
+        if (dateEl && dateEl.textContent.trim()) {
+          dateText = dateEl.textContent.trim();
+        } else {
+          const last = block.lastElementChild;
+          if (last && last.children.length === 0) {
+            const t = (last.textContent || "").trim();
+            if (t && t.length < 200) dateText = t;
+          }
+        }
+
+        out.push({ username: uname, date: dateText });
+      }
+
+      return out;
+    }
+
+    // ---------- JSON parsing ----------
+
+    function usernameFromHref(href) {
+      if (!href) return null;
+      const m = String(href).match(/instagram\.com\/(?:_u\/)?([A-Za-z0-9._]+)/i);
+      return m ? m[1] : null;
+    }
+
+    function parseRelationshipsJson(json, keys) {
+      let arr = null;
+      if (Array.isArray(json)) {
+        arr = json;
+      } else if (json && typeof json === "object") {
+        for (const k of keys) {
+          if (Array.isArray(json[k])) {
+            arr = json[k];
+            break;
+          }
+        }
+      }
+      const out = new Set();
+      if (!arr) return out;
+
+      for (const item of arr) {
+        if (!item) continue;
+        if (typeof item === "string") {
+          out.add(item);
+          continue;
+        }
+        if (typeof item !== "object") continue;
+
+        if (typeof item.value === "string" && item.value) out.add(item.value);
+        if (typeof item.href === "string") {
+          const u = usernameFromHref(item.href);
+          if (u) out.add(u);
+        }
+
+        if (Array.isArray(item.string_list_data)) {
+          for (const s of item.string_list_data) {
+            if (!s || typeof s !== "object") continue;
+            if (typeof s.value === "string" && s.value) out.add(s.value);
+            if (typeof s.href === "string") {
+              const u = usernameFromHref(s.href);
+              if (u) out.add(u);
+            }
+          }
+        }
+      }
+      return out;
+    }
+
+    function parseFollowersFromJson(json) {
+      return parseRelationshipsJson(json, [
+        "relationships_followers",
+        "followers",
+        "data",
+      ]);
+    }
+
+    function parseFollowingFromJson(json) {
+      return parseRelationshipsJson(json, [
+        "relationships_following",
+        "following",
+        "data",
+      ]);
+    }
+
+    function parsePendingFromJson(json) {
+      const out = [];
+      let arr = null;
+      if (Array.isArray(json)) {
+        arr = json;
+      } else if (json && typeof json === "object") {
+        const keys = [
+          "relationships_follow_requests_sent",
+          "relationships_follow_requests",
+          "pending_follow_requests",
+          "follow_requests_sent",
+        ];
+        for (const k of keys) {
+          if (Array.isArray(json[k])) {
+            arr = json[k];
+            break;
+          }
+        }
+      }
+      if (!arr) return out;
+
+      for (const item of arr) {
+        if (!item || typeof item !== "object") continue;
+
+        let username = null;
+        let timestamp = null;
+
+        if (Array.isArray(item.string_list_data)) {
+          for (const s of item.string_list_data) {
+            if (!s || typeof s !== "object") continue;
+            if (!username && typeof s.value === "string" && s.value) username = s.value;
+            if (!username && typeof s.href === "string") {
+              const u = usernameFromHref(s.href);
+              if (u) username = u;
+            }
+            if (timestamp == null && typeof s.timestamp === "number") timestamp = s.timestamp;
+          }
+        }
+        if (!username && typeof item.value === "string" && item.value) username = item.value;
+        if (!username && typeof item.title === "string" && item.title) username = item.title;
+        if (!username && typeof item.href === "string") {
+          const u = usernameFromHref(item.href);
+          if (u) username = u;
+        }
+        if (!username) continue;
+
+        let date = "unknown";
+        if (timestamp != null) {
+          try {
+            date = new Date(timestamp * 1000).toLocaleString();
+          } catch (_) {
+            /* ignore */
+          }
+        }
+        out.push({ username, date });
+      }
+      return out;
+    }
+
+    // ---------- Rendering ----------
+
+    function renderLists() {
+      // Filtered one-way list
+      const q1 = searchOneWay.value.trim().toLowerCase();
+      const filteredOneWay = oneWayList.filter((u) =>
+        u.username.toLowerCase().includes(q1)
+      );
+
+      if (filteredOneWay.length === 0) {
+        listOneWay.innerHTML =
+          '<div class="empty">No results. Try another search term.</div>';
+      } else {
+        listOneWay.innerHTML = filteredOneWay
+          .map(
+            (u) => `
+          <div class="item">
+            <div class="item-main">
+              <div class="username">
+                <a href="https://www.instagram.com/${u.username}" target="_blank" rel="noopener">
+                  ${u.username}
+                </a>
+              </div>
+            </div>
+            <div class="pill pill-danger">Does not follow you</div>
+          </div>
+        `
+          )
+          .join("");
+      }
+
+      // Filtered pending list
+      const q2 = searchPending.value.trim().toLowerCase();
+      const filteredPending = pendingList.filter((u) =>
+        u.username.toLowerCase().includes(q2)
+      );
+
+      if (filteredPending.length === 0) {
+        listPending.innerHTML =
+          '<div class="empty">No results. Try another search term.</div>';
+      } else {
+        listPending.innerHTML = filteredPending
+          .map(
+            (u) => `
+          <div class="item">
+            <div class="item-main">
+              <div class="username">
+                <a href="https://www.instagram.com/${u.username}" target="_blank" rel="noopener">
+                  ${u.username}
+                </a>
+              </div>
+              <div class="meta">Requested: ${u.date || "unknown"}</div>
+            </div>
+            <div class="pill pill-ok">Pending</div>
+          </div>
+        `
+          )
+          .join("");
+      }
+    }
+
+    searchOneWay.addEventListener("input", renderLists);
+    searchPending.addEventListener("input", renderLists);
+
+    // ---------- Analyze ----------
+
+    async function analyze() {
+      if (!currentFile) return;
+
+      analyzeBtn.disabled = true;
+      analyzeSpinner.style.display = "inline-block";
+      analyzeLabel.textContent = "Working…";
+      setStatus("Reading .zip file…");
+
+      try {
+        const arrayBuffer = await currentFile.arrayBuffer();
+        const zip = await JSZip.loadAsync(arrayBuffer);
+
+        const allPaths = Object.keys(zip.files).filter((p) => !zip.files[p].dir);
+
+        const followerHtmlPaths = allPaths.filter((p) =>
+          /(^|\/)followers(_\d+)?\.html$/i.test(p)
+        );
+        const followerJsonPaths = allPaths.filter((p) =>
+          /(^|\/)followers(_\d+)?\.json$/i.test(p)
+        );
+        const followingHtmlPath = allPaths.find((p) =>
+          /(^|\/)following\.html$/i.test(p)
+        );
+        const followingJsonPath = allPaths.find((p) =>
+          /(^|\/)following\.json$/i.test(p)
+        );
+        const pendingHtmlPath = allPaths.find((p) =>
+          /(^|\/)pending_follow_requests\.html$/i.test(p)
+        );
+        const pendingJsonPath = allPaths.find((p) =>
+          /(^|\/)pending_follow_requests\.json$/i.test(p)
+        );
+
+        const hasFollowers =
+          followerHtmlPaths.length > 0 || followerJsonPaths.length > 0;
+        const hasFollowing = !!followingHtmlPath || !!followingJsonPath;
+
+        if (!hasFollowers || !hasFollowing) {
+          setStatus(
+            "Could not find followers or following data in this zip. Expected files under connections/followers_and_following/ (followers_*.html/json, following.html/json).",
+            true
+          );
+          return;
+        }
+
+        // Followers
+        const followerSet = new Set();
+        for (const p of followerHtmlPaths) {
+          const txt = await zip.files[p].async("string");
+          parseUsernamesFromHtml(txt).forEach((u) => followerSet.add(u));
+        }
+        for (const p of followerJsonPaths) {
+          try {
+            const txt = await zip.files[p].async("string");
+            parseFollowersFromJson(JSON.parse(txt)).forEach((u) =>
+              followerSet.add(u)
+            );
+          } catch (e) {
+            console.warn("Failed to parse followers JSON", p, e);
+          }
+        }
+
+        // Following
+        const followingSet = new Set();
+        if (followingHtmlPath) {
+          const txt = await zip.files[followingHtmlPath].async("string");
+          parseUsernamesFromHtml(txt).forEach((u) => followingSet.add(u));
+        }
+        if (followingJsonPath) {
+          try {
+            const txt = await zip.files[followingJsonPath].async("string");
+            parseFollowingFromJson(JSON.parse(txt)).forEach((u) =>
+              followingSet.add(u)
+            );
+          } catch (e) {
+            console.warn("Failed to parse following JSON", followingJsonPath, e);
+          }
+        }
+
+        // Pending (HTML + JSON, se existirem)
+        const pendingMap = new Map();
+        if (pendingHtmlPath) {
+          const txt = await zip.files[pendingHtmlPath].async("string");
+          for (const item of parsePendingFromHtml(txt)) {
+            if (!pendingMap.has(item.username)) {
+              pendingMap.set(item.username, item.date);
+            }
+          }
+        }
+        if (pendingJsonPath) {
+          try {
+            const txt = await zip.files[pendingJsonPath].async("string");
+            for (const item of parsePendingFromJson(JSON.parse(txt))) {
+              if (!pendingMap.has(item.username)) {
+                pendingMap.set(item.username, item.date);
+              }
+            }
+          } catch (e) {
+            console.warn("Failed to parse pending JSON", pendingJsonPath, e);
+          }
+        }
+        const pending = Array.from(pendingMap, ([username, date]) => ({
+          username,
+          date,
+        }));
+
+        const followers = Array.from(followerSet);
+        const following = Array.from(followingSet);
+
+        // Set differences
+        const theyDontFollow = following.filter((u) => !followerSet.has(u));
+        const youDontFollowBack = followers.filter((u) => !followingSet.has(u));
+
+        followersCountEl.textContent = followers.length;
+        followingCountEl.textContent = following.length;
+        youDontFollowBackCountEl.textContent = youDontFollowBack.length;
+        theyDontFollowCountEl.textContent = theyDontFollow.length;
+        summaryEl.style.display = "grid";
+
+        oneWayList = theyDontFollow
+          .slice()
+          .sort((a, b) => a.localeCompare(b))
+          .map((username) => ({ username }));
+
+        pendingList = pending
+          .slice()
+          .sort((a, b) => a.username.localeCompare(b.username));
+
+        renderLists();
+
+        const msgParts = [
+          `Followers: ${followers.length}`,
+          `Following: ${following.length}`,
+          `Don't follow you back: ${theyDontFollow.length}`,
+          `Pending: ${pendingList.length}`,
+        ];
+        setStatus("Done. " + msgParts.join(" · "));
+      } catch (err) {
+        console.error(err);
+        setStatus("Error while analyzing this file. See console for details.", true);
+      } finally {
+        analyzeSpinner.style.display = "none";
+        analyzeLabel.textContent = "Analyze";
+        analyzeBtn.disabled = !currentFile;
+      }
+    }
+
+    analyzeBtn.addEventListener("click", () => {
+      analyze().catch((e) => {
+        console.error(e);
+        setStatus("Unexpected error. See console for details.", true);
+      });
+    });
+
+    // Initial state
+    resetAll();
+  </script>
+</body>
+</html>
